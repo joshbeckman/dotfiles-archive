@@ -74,6 +74,19 @@ export interface LogsConfig {
 }
 
 /**
+ * Gate thresholds (PSH-11, DEC-11). Each gate asks one probability question and acts above the
+ * number; `decisionModel` still turns the gates on and off. Numbers, not wording: the question is a
+ * sentence that wants review, the threshold is a dial tuned from traffic, so it lives here where a
+ * config edit and a restart are the whole deploy.
+ */
+export interface GatesConfig {
+	/** A push above this probability; 0.09 by default. */
+	push?: number;
+	/** A wake above this probability; 0.15 by default. */
+	wake?: number;
+}
+
+/**
  * Objective defaults (OBJ-16, OBJ-24, OBJ-18). An objective row overrides any of them per
  * objective; these are what a new objective starts with.
  */
@@ -114,6 +127,7 @@ export interface Config {
 	subjectModel?: string;
 	/** DEC-01: a System One model for probability-only questions. Unset turns the wake gate off. */
 	decisionModel?: string;
+	gates: GatesConfig;
 	defaultModel?: string;
 	spawnDepth: number;
 	budget: Budget;
@@ -189,7 +203,7 @@ export function parseConfig(raw: unknown): Config {
 		throw new ConfigError("config.json is missing required key: user", 2);
 	}
 
-	for (const key of ["budget", "artifacts", "files", "http", "tools", "scratch", "retention", "logs", "objectives", "ui"]) {
+	for (const key of ["budget", "artifacts", "files", "http", "tools", "scratch", "retention", "logs", "objectives", "ui", "gates"]) {
 		if (obj[key] !== undefined && (!obj[key] || typeof obj[key] !== "object" || Array.isArray(obj[key]))) {
 			throw new ConfigError(`config.json ${key} must be an object`, 2);
 		}
@@ -216,6 +230,7 @@ export function parseConfig(raw: unknown): Config {
 	const retention = (obj.retention ?? {}) as Record<string, unknown>;
 	const logs = (obj.logs ?? {}) as Record<string, unknown>;
 	const objectives = (obj.objectives ?? {}) as Record<string, unknown>;
+	const gates = (obj.gates ?? {}) as Record<string, unknown>;
 	const maxTotalMB = positive(scratch.maxTotalMB, "scratch.maxTotalMB", "megabytes");
 
 	return {
@@ -226,6 +241,10 @@ export function parseConfig(raw: unknown): Config {
 		timezone: typeof obj.timezone === "string" ? obj.timezone : systemTimezone(),
 		subjectModel: typeof obj.subjectModel === "string" ? obj.subjectModel : undefined,
 		decisionModel: typeof obj.decisionModel === "string" ? obj.decisionModel : undefined,
+		gates: {
+			...(gates.push === undefined ? {} : { push: probability(gates.push, "gates.push") }),
+			...(gates.wake === undefined ? {} : { wake: probability(gates.wake, "gates.wake") }),
+		},
 		defaultModel: typeof obj.defaultModel === "string" ? obj.defaultModel : undefined,
 		spawnDepth: nonnegative(obj.spawnDepth, "spawnDepth", true) ?? DEFAULTS.spawnDepth,
 		budget: {
@@ -319,6 +338,14 @@ function portNumber(value: unknown): number | undefined {
 function integer(value: unknown, key: string, min = 0): number {
 	if (typeof value !== "number" || !Number.isFinite(value) || !Number.isInteger(value) || value < min) {
 		throw new ConfigError(`config.json ${key} must be a whole number of at least ${min}`, 2);
+	}
+	return value;
+}
+
+/** PSH-11: a gate threshold is a probability, so strictly between 0 and 1. */
+function probability(value: unknown, key: string): number {
+	if (typeof value !== "number" || !Number.isFinite(value) || value <= 0 || value >= 1) {
+		throw new ConfigError(`config.json ${key} must be a number between 0 and 1, exclusive`, 2);
 	}
 	return value;
 }

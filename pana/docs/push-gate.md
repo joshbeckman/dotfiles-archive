@@ -183,7 +183,7 @@ For w9 that is 0.05, and it still scores all four of his examples below the line
 the wording has to change with it. For w12, the wording that names his shape, the crossing is 0.09:
 0.10 recalls 0.84 and 0.09 recalls 0.86.
 
-**Chosen: w12 at 0.09.** 151.5 of 204 pushes (74%), precision 0.27, recall 0.86. The same clause
+**Chosen: w12 at 0.09**, and since the next day that number and the wake gate's are config (`gates.push`, `gates.wake`; PSH-11), because Josh's reaction to the first tuning round was "why do we have to ship a PR to tune these numbers?". The wording stays in code, where it wants review; the number is now an edit and a restart. 151.5 of 204 pushes (74%), precision 0.27, recall 0.86. The same clause
 lifts his four messages from 0.002/0.018/0.004/0.042 to 0.438/0.867/0.165/0.047, so three of the
 four now push and the fourth (a one-line answer naming `tools.joshbeckman.org`) sits just under.
 On the 13 hours of live traffic that prompted the change, 8 of 15 deliveries would push instead of 1.

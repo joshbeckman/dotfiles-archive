@@ -39,6 +39,14 @@ export const PUSH_QUESTION = "delivery_needs_push";
 export const PUSH_GATE_THRESHOLD = 0.09;
 
 /**
+ * The threshold this panad uses (PSH-11): `gates.push` when config sets it, the default otherwise.
+ * Read per decision, so an edit plus a restart is the whole tune; panad reads config once at startup.
+ */
+export function pushThreshold(runtime: Runtime): number {
+	return runtime.config.gates?.push ?? PUSH_GATE_THRESHOLD;
+}
+
+/**
  * The question, in the wording that measured best against what Josh actually wants pushed.
  *
  * It started as the plain interruption question plus "a pull request open and waiting on their
@@ -99,7 +107,7 @@ export async function planPushGate(
 		});
 		return undefined;
 	}
-	const push = probability >= PUSH_GATE_THRESHOLD;
+	const push = probability >= pushThreshold(runtime);
 	const plan = new Map<string, PushDecision>();
 	for (const deliveryId of deliveryIds) plan.set(deliveryId, { probability, push });
 	return plan;

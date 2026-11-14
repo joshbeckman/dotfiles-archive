@@ -9,7 +9,7 @@ import { readFileSync } from "node:fs";
 import { join as joinPath } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { setDecisionTransport, type DecisionRequest } from "../src/decisions/index.ts";
-import { PUSH_GATE_THRESHOLD, PUSH_QUESTION } from "../src/decisions/push.ts";
+import { PUSH_GATE_THRESHOLD, PUSH_QUESTION, pushThreshold } from "../src/decisions/push.ts";
 import { setPushTransport, type PushMessage } from "../src/push/index.ts";
 import { sessionRuntime } from "../src/sessions/index.ts";
 import { announce, postNotice } from "../src/threads/index.ts";
@@ -178,6 +178,48 @@ describe("PSH-07 the gate asks one question over the wake's own rendering", () =
 		expect(state).toContain(`Message: ${t!.runtime.url({ kind: "message", id: posted.message!.id, thread: created.thread.id })}`);
 		expect(state).toContain("Subject:");
 		expect(state).toContain("Done: the build is green and ready for your merge.");
+	});
+});
+
+describe("PSH-11 the threshold is a config value, not a constant", () => {
+	it("PSH-11 gates.push changes the decision on the same probability", async () => {
+		const probability = 0.5;
+		await start({ decisionModel: "faux/rune", gates: { push: 0.6 } });
+		await subscribe();
+		const raised = pushes();
+		const created = await session("threshold please");
+		answer(probability);
+		raised.length = 0;
+
+		const skipped = await reply(created.thread.id, created.session.id, "Half a chance of mattering.");
+		await t!.clock.settle();
+		await sessionRuntime(t!.runtime).idle();
+
+		// 0.5 sits below the configured 0.6, so the push is skipped and the line says so.
+		expect(raised).toEqual([]);
+		expect(pushLines(skipped.message!.id)[0]).toMatchObject({ decision: "skip", probability });
+
+		// The same probability under the default 0.09 pushes: the number, not the wording, moved.
+		await t!.close();
+		t = undefined;
+		await start({ decisionModel: "faux/rune" });
+		await subscribe();
+		const kept = pushes();
+		const second = await session("threshold again");
+		answer(probability);
+		kept.length = 0;
+
+		const pushed = await reply(second.thread.id, second.session.id, "Half a chance of mattering.");
+		await until(() => kept.length > 0, "the push under the default threshold");
+
+		expect(kept).toHaveLength(1);
+		expect(pushLines(pushed.message!.id)[0]).toMatchObject({ decision: "push", probability });
+	});
+
+	it("PSH-11 an unset gates.push uses the default constant", async () => {
+		await start({ decisionModel: "faux/rune" });
+		expect(pushThreshold(t!.runtime)).toBe(PUSH_GATE_THRESHOLD);
+		expect(pushThreshold({ config: { gates: { push: 0.42 } } } as never)).toBe(0.42);
 	});
 });
 

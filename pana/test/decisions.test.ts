@@ -9,7 +9,7 @@ import { join as joinPath } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { parseConfig } from "../src/config/index.ts";
 import { DECISION_TIMEOUT_MS, SYSTEM_ONE_PATH, decide, setDecisionTransport, type DecisionRequest } from "../src/decisions/index.ts";
-import { WAKE_GATE_THRESHOLD, WAKE_QUESTION } from "../src/decisions/gate.ts";
+import { WAKE_GATE_THRESHOLD, WAKE_QUESTION, wakeThreshold } from "../src/decisions/gate.ts";
 import { sweepWakes } from "../src/db/outbox.ts";
 import { sessionRuntime } from "../src/sessions/index.ts";
 import type { Runtime } from "../src/server/runtime.ts";
@@ -275,6 +275,40 @@ describe("DEC-04 the probability threshold", () => {
 		const row = await delivery(sent.body.message.id, a.session.id);
 		expect(row?.wake_submission_id).not.toBeNull();
 		expect(gateLinesFor(sent.body.message.id)).toEqual([expect.objectContaining({ probability: 0.9, decision: "wake" })]);
+	});
+});
+
+describe("DEC-11 the wake threshold is a config value", () => {
+	it("DEC-11 gates.wake changes the wake decision on the same probability", async () => {
+		// 0.2 wakes under the default 0.15 and is skipped under a configured 0.5.
+		await start({ decisionModel: "faux/rune", gates: { wake: 0.5 } });
+		const a = await session("watch");
+		const b = await session("wait");
+		await addToThread(a, b);
+		answer(0.2);
+
+		const skipped = await replyAs(a.thread.id, b.session.id, "Ready when you are.");
+		await settled(a.session.id);
+		expect(await delivery(skipped.body.message.id, a.session.id)).toMatchObject({ wake_request_id: null, wake_submission_id: null });
+		expect(gateLinesFor(skipped.body.message.id)[0]).toMatchObject({ decision: "skip", probability: 0.2 });
+
+		await t!.close();
+		t = undefined;
+		await start({ decisionModel: "faux/rune" });
+		const c = await session("watch again");
+		const d = await session("wait again");
+		await addToThread(c, d);
+		answer(0.2);
+
+		const woke = await replyAs(c.thread.id, d.session.id, "Ready when you are.");
+		await settled(c.session.id);
+		expect((await delivery(woke.body.message.id, c.session.id))?.wake_submission_id).not.toBeNull();
+	});
+
+	it("DEC-11 an unset gates.wake uses the default constant", async () => {
+		await start({ decisionModel: "faux/rune" });
+		expect(wakeThreshold(t!.runtime)).toBe(WAKE_GATE_THRESHOLD);
+		expect(wakeThreshold({ config: { gates: { wake: 0.3 } } } as never)).toBe(0.3);
 	});
 });
 
