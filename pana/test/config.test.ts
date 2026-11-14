@@ -97,6 +97,7 @@ describe("config and state", () => {
 			retention: { readDeliveryDays: 30 },
 			logs: { maxBytes: 4 * 1024 * 1024, keep: 2 },
 			objectives: { maxMembersPerRun: 8, maxDailyUserMessages: 10, wakeMinMinutes: 5 },
+			gates: {},
 		});
 		expect(DEFAULTS.files.maxBytes).toBe(25 * 1024 * 1024);
 
@@ -114,9 +115,11 @@ describe("config and state", () => {
 				scratch: { ttlDays: 2, maxTotalMB: 512 },
 				retention: { readDeliveryDays: 14 },
 				objectives: { maxMembersPerRun: 4, wakeMinMinutes: 20 },
+				gates: { push: 0.4, wake: 0.2 },
 			}),
 		);
 		expect(custom).toMatchObject({
+			gates: { push: 0.4, wake: 0.2 },
 			timezone: "America/Chicago",
 			subjectModel: "faux/faux-1",
 			defaultModel: "faux/faux-1",
@@ -130,6 +133,20 @@ describe("config and state", () => {
 			objectives: { maxMembersPerRun: 4, maxDailyUserMessages: 10, wakeMinMinutes: 20 },
 		});
 		expect(() => loadConfig(tempConfig({ domain: TEST_DOMAIN, user: TEST_USER, scratch: { ttlDays: 0 } }))).toThrow(/scratch.ttlDays/);
+	});
+
+	it("PSH-11 a gate threshold is a probability between 0 and 1, exclusive", () => {
+		for (const value of [0, 1, -0.1, 1.5, "0.5", null]) {
+			expect(() => loadConfig(tempConfig({ domain: TEST_DOMAIN, user: TEST_USER, gates: { push: value } })), String(value)).toThrow(
+				/gates\.push/,
+			);
+			expect(() => loadConfig(tempConfig({ domain: TEST_DOMAIN, user: TEST_USER, gates: { wake: value } })), String(value)).toThrow(
+				/gates\.wake/,
+			);
+		}
+		// Unset is not an error: the gates keep their measured defaults.
+		expect(loadConfig(tempConfig({ domain: TEST_DOMAIN, user: TEST_USER })).gates).toEqual({});
+		expect(loadConfig(tempConfig({ domain: TEST_DOMAIN, user: TEST_USER, gates: { push: 0.5 } })).gates).toEqual({ push: 0.5 });
 	});
 
 	it("CFG-04 panad creates the state layout on first start, with web-token at mode 0600", async () => {

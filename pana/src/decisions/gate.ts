@@ -29,6 +29,11 @@ export const WAKE_QUESTION = "delivery_needs_action";
  */
 export const WAKE_GATE_THRESHOLD = 0.15;
 
+/** `gates.wake` when config sets it, the default otherwise (DEC-11). Read per decision. */
+export function wakeThreshold(runtime: Runtime): number {
+	return runtime.config.gates?.wake ?? WAKE_GATE_THRESHOLD;
+}
+
 /**
  * The question, in the wording that measured best against a labeled corpus of this domain's
  * session mail (`pana/docs/wake-gate.md`): seven wordings, two runs each, 103 hand-labeled
@@ -87,7 +92,7 @@ export async function planWakeGate(
 		});
 		return undefined;
 	}
-	const wake = probability >= WAKE_GATE_THRESHOLD;
+	const wake = probability >= wakeThreshold(runtime);
 	const plan = new Map<string, GateDecision>();
 	for (const recipient of recipients) plan.set(recipient, { probability, wake });
 	return plan;
