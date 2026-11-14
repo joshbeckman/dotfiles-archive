@@ -102,6 +102,8 @@ text, same `noul` question shape, same 2-second budget.
 | w8 | "would a busy person want their phone to buzz" | 0.585 | 0.574 |
 | w9 | **w1 plus "a pull request open and waiting on their merge, a decision only they can make, or work blocked on them"** | **0.806** | **0.806** |
 | w10 | "is the message waiting on the recipient", with a no-list | 0.786 | 0.783 |
+| w11 | w9 plus "or an answer to a question they asked" | 0.800 | 0.797 |
+| w12 | **w9 plus "a result they asked to see, including an answer to their question or work they asked for that is now done or ready"** | 0.792 | 0.788 |
 
 AUC is over the 200 hand-labeled deliveries. w1 alone ranked mail at 0.72, and its one systematic
 miss was a shape: "PR 306 now has green checks, ready for your merge" scored below 0.01 and read as
@@ -123,7 +125,8 @@ weighted 1; pushing everything is 157 useless pushes and no misses.
 | 0.7 | 58 | 0.48 | 0.65 | 15 | 30 | 75 | 105 |
 | 0.8 | 46 | 0.47 | 0.50 | 21.5 | 24.5 | 89 | 132 |
 
-**Chosen: w9 at 0.6.** It keeps 32% of what used to push, at precision 0.49 and recall 0.73.
+**Chosen at the time: w9 at 0.6.** It kept 32% of what used to push, at precision 0.49 and recall
+0.73. That is not what ships; the second measurement below replaced it.
 
 Intervals, bootstrapped over the 200 examples (4,000 resamples, 90%): precision 0.49 [0.39-0.59],
 recall 0.73 [0.62-0.85]. Run to run, the two passes agree on 189 of 200 decisions at 0.6, and the
@@ -133,7 +136,12 @@ counts differ by about two messages at every threshold in the sweep.
 
 A missed push costs Josh silence on something he wanted now. A useless push costs him an
 interruption, several times an hour, and it teaches him to ignore the phone. The message is still in
-the inbox after a miss, so the cost of a miss is delay, not loss. I weight the miss at three.
+the inbox after a miss, so the cost of a miss is delay, not loss. I first weighted the miss at three,
+and the shipped w9 at 0.6 was that number's answer.
+
+Josh's complaint is the correction: he would rather be buzzed ten times for nothing than miss the
+answer he asked for, so the weight is ten. This section keeps the 3:1 arithmetic because it is what
+shipped first and what the audit's tuning language still refers to.
 
 At 3:1 the gate costs 67.5 mistakes per 200 messages against 157 for pushing everything: two thirds of
 the interruptions go, at a cost of 11.5 delayed messages per 200 (about six of them things he has to
@@ -142,13 +150,64 @@ push is worth five useful ones: at 5:1 it is 90.5 against 157, still a win; at 1
 loss (276 against 157). If Josh would rather never miss anything, the threshold is the wrong
 instrument; unset `decisionModel`.
 
+## The second measurement: the gate went too quiet
+
+Two days of live traffic reopened the question. Josh said the gate pushed him nothing: 14 gated
+deliveries in 13 hours, one push. The skips included messages he had asked for - "Done. The artifact
+on this thread is now v3", "Yes. The transcript blocks are plain HTML", "Yes. The artifact is on this
+thread. Press play", and an answer naming a domain - all scoring 0.002 to 0.053 under w9.
+
+I rebuilt those 15 deliveries' states and re-ran w9 over them: the harness reproduced the daemon's
+numbers (0.002 for 0.000, 0.867 for 0.852, 0.042 for 0.042), so this is the question's judgement and
+not a plumbing bug. The four he named score at most 0.053: no threshold that leaves a gate at all
+recovers them. Adding them as wanted labels (204 total, 47 wanted) and weighting a miss at 10:1 -
+the correction to my 3:1 guess, which his complaint disconfirmed - gives:
+
+| threshold | w9 precision | w9 recall | w9 pushes | w9 cost at 10:1 | w12 precision | w12 recall | w12 pushes | w12 cost at 10:1 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 0.01 | 0.30 | 0.96 | 151.5 | 126.5 | 0.24 | 1.00 | 198.5 | 151.5 |
+| 0.02 | 0.31 | 0.94 | 142 | 128 | 0.24 | 1.00 | 193.5 | 146.5 |
+| 0.03 | 0.32 | 0.94 | 135.5 | **121.5** | 0.25 | 0.99 | 184.5 | **143** |
+| 0.05 | 0.33 | 0.89 | 127 | 135 | 0.25 | 0.91 | 170.5 | 167.5 |
+| 0.08 | 0.33 | 0.81 | 116 | 168 | 0.27 | 0.87 | 154 | 173 |
+| 0.09 | 0.33 | 0.79 | 113 | 173.5 | 0.27 | 0.86 | 151.5 | 176 |
+| 0.10 | 0.33 | 0.76 | 109 | 188.5 | 0.27 | 0.84 | 147.5 | 183 |
+| 0.20 | 0.35 | 0.69 | 92.5 | 205 | 0.28 | 0.77 | 127.5 | 201.5 |
+| 0.30 | 0.39 | 0.69 | 83.5 | 196 | 0.31 | 0.77 | 117.5 | 191.5 |
+| 0.60 | 0.49 | 0.67 | 64.5 | 188 | 0.34 | 0.68 | 94.5 | 212.5 |
+
+Pushing everything costs 157 at 10:1, so the cost optimum is 0.03 for every wording: at that weight
+the honest answer is "push almost everything". A threshold that low is not a gate, so the number
+ships from the second rule instead: the highest cut that still recalls 85% of the wanted pushes.
+For w9 that is 0.05, and it still scores all four of his examples below the line (0.002 to 0.042), so
+the wording has to change with it. For w12, the wording that names his shape, the crossing is 0.09:
+0.10 recalls 0.84 and 0.09 recalls 0.86.
+
+**Chosen: w12 at 0.09.** 151.5 of 204 pushes (74%), precision 0.27, recall 0.86. The same clause
+lifts his four messages from 0.002/0.018/0.004/0.042 to 0.438/0.867/0.165/0.047, so three of the
+four now push and the fourth (a one-line answer naming `tools.joshbeckman.org`) sits just under.
+On the 13 hours of live traffic that prompted the change, 8 of 15 deliveries would push instead of 1.
+
+The finding to say out loud: at this recall the filter is nearly worthless. No w12 threshold has
+recall above 0.8 *and* precision above 0.3 - the best precision in that band is 0.28 - and the 0.27
+against a 0.23 base rate is a 1.2x lift. What the gate still removes at 0.09 is the shape my labels
+call noise and Josh does not miss: routine checks that found nothing, "still nothing yet" statuses,
+nightly digests, and unprompted coaching. That is worth having and it is not the thing the first
+measurement claimed.
+
 ## What is still wrong
 
-- **One labeler, 200 examples.** The precision interval is ±0.10 wide. A second reader on the same
-  200 texts is the next thing to add; the labels are the measurement here, so their bias is the
+- **One labeler, 204 examples.** The precision interval is ±0.10 wide. A second reader on the same
+  texts is the next thing to add; the labels are the measurement here, so their bias is the
   measurement's bias.
-- **Half the pushes it keeps are still unwanted.** Precision 0.49 is a 2.3x lift over the 0.22 base
-  rate, not a filter. The question ranks mail well and separates it poorly at any single cut.
+- **My rubric under-counted the shape Josh complained about.** I labeled a short "here is the thing
+  you asked for" as a report, so the first wording learned to skip it and precision was measured
+  against a target that disagreed with him. The four live examples are now labeled wanted; the rest
+  of the 200 still carry the old rubric, so precision at 0.09 is a floor, not an estimate.
+- **The filter is nearly worthless at this recall.** Precision 0.27 against a 0.23 base rate is a
+  1.2x lift. No threshold gets recall above 0.8 with precision above 0.3. The gate now earns its
+  keep by removing the shapes he does not miss (routine checks, "still nothing", digests, coaching),
+  not by being a good classifier of the rest.
 - **The model reads actions as reports and coaching as urgency.** The misses that remain are a
   checkout behind master ("pull to get the fix") and a pull request waiting on him; the false
   positives are a training critique ("you've hit the line on leg training") and an instruction
