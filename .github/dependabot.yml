@@ -16,8 +16,10 @@ updates:
   - package-ecosystem: npm
     directory: /pana
     schedule:
-      interval: daily
-      time: "05:00"
+      # cron rather than daily: `daily` means Monday to Friday, which leaves
+      # Saturday and Sunday releases waiting until Monday.
+      interval: cron
+      cronjob: "0 5 * * *"
       timezone: America/Chicago
     cooldown:
       default-days: 7
