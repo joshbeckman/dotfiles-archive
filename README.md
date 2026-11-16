@@ -1,5 +1,27 @@
 # Dotfiles
 
+> **Archived on 16 November 2026.** This repository is a read-only public record of the
+> dotfiles project up to that date. Development continues in a private repository at
+> `joshbeckman/dotfiles`, with the same history: its `main` branch starts at this
+> repository's last `master` commit, and all 92 branches were carried over. Every issue and
+> pull request opened before the cutover stays here, readable, closed to further comment.
+> Issue and pull request numbers refer to this repository, so `joshbeckman/dotfiles#N` no
+> longer reaches them: that name now points at the private repository, where those numbers
+> do not exist.
+
+## Why this is archived
+
+Dotfiles are a picture of the machine and the accounts behind it: hostnames, service and
+account identifiers, internal tool names, agent instructions and prompts, and the places
+where credentials are expected to live. Publishing that meant reviewing every commit for
+what it revealed, and a detail could not be unpublished once it shipped. GitHub does not
+let a fork change its own visibility, so this fork was renamed to `dotfiles-archive` and a
+new private repository took the `dotfiles` name with the same history. Everything published
+here before the cutover is still public, and staying public is the point of an archive: it
+is the permanent record of what was open, not a place to keep working.
+
+This repository remains a fork of [`justone/dotfiles`](https://github.com/justone/dotfiles).
+
 Configuration for my macOS development environment, managed with [dfm](https://github.com/justone/dfm).
 
 ## Setup
@@ -9,6 +31,10 @@ cd $HOME
 git clone git@github.com:joshbeckman/dotfiles.git .dotfiles
 ./.dotfiles/setup
 ```
+
+Those instructions describe the project as it was at the cutover. The clone URL now names the
+private repository, so the commands work only for an account with access; nothing in this
+archive installs for anyone else.
 
 The [`setup`](setup) script handles everything: symlinking dotfiles via `dfm install`, installing Homebrew formulae from `Brewfile`, and cloning plugins for zsh, tmux, and Neovim. It detects macOS vs. Linux and adjusts accordingly.
 
