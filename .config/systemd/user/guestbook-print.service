@@ -1,0 +1,10 @@
+[Unit]
+Description=Print queued guest book reviews
+After=network-online.target
+
+[Service]
+Type=oneshot
+Environment=S_KEY_COMMAND=/home/josh/bin/senv-key
+ExecStart=/home/josh/bin/s GUESTBOOK_KEY -- /home/josh/bin/guestbook-print.py
+Nice=10
+TimeoutStartSec=600
